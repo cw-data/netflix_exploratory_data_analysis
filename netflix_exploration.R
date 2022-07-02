@@ -4,6 +4,7 @@ library(janitor)
 library(jtools)
 library(gt)
 library(dplyr)
+library(scales)
 
 # setwd("C:/Users/wainr/OneDrive/Documents/netflix_exploratory_data_analysis")
 # https://www.kaggle.com/code/svitlanabozhenko/netflix
@@ -33,45 +34,142 @@ for(i in 1:n_distinct(credit_colnames)){ # specify loop length to match count of
     list_of_uniques[[i]] <- n_distinct(credits[i]) # extract n_distinct for each column in credits dataframe
 } # confirmed, there are no NAs in any column of credit
 
-# histogram to show distribution
+# frequency bar chart histogram showing distribution of credit
 credit_counts <- credits %>%
-    count(name, sort = TRUE)
-credit_counts$director <- credits %>%
-    filter(role=="ACTOR") %>%
-    count(name, sort = TRUE)
-
-
+    count(name, sort = TRUE) # count the number of times a name appears in df credits
+credits_mean <- mean(credit_counts$n)
+credits_median <- median(credit_counts$n)
+credits_skewness <- skewness(credit_counts$n)
+credits_kurtosis <- kurtosis(credit_counts$n)
 n_in_fig <- 50
-test2 <-
-head(credits, n = n_in_fig) %>%
-    count(name, role) %>%
-    pivot_wider(names_from = role, values_from = n) %>%
-    clean_names()
-
-df_plot <- head(credit_counts, n = n_in_fig)
-df_plot$actor <- test2$actor
-
-text_size <- 10
-df_plot %>%
+hjust <- 0
+x <- 1
+head(credit_counts, n=n_in_fig) %>%
     ggplot(aes(x = reorder(name,-n), y = n)) +
-    geom_col() +
-    geom_text(aes(label = name), hjust = 1.2, vjust = 0.35, colour = "white", angle = 90, size = text_size) +
+    geom_col(width = 1) + 
+    scale_y_continuous(expand = c(0,0)) +
+    geom_hline(
+        yintercept = credits_mean,
+        na.rm = FALSE,
+        color = "white",
+        linetype = "dashed",
+        size = 2
+    ) +
+    geom_hline(
+        yintercept = credits_median,
+        na.rm = FALSE,
+        color = "black",
+        linetype = "solid",
+        size = 2
+    ) +
+    theme_bw() +
+    labs(
+        title = paste0("Distribution of appearances by actors and directors on Netflix"),
+        subtitle = paste0("This figure shows a subset of the ", comma(n_in_fig), " most prolific out of a total of about ", comma(round(n_distinct(credits$name),-3))," people in this dataset."),
+        x = "Name",
+        y = "Count of appearances",
+        fill = "Role"
+    ) +
+    theme(
+        axis.text.x = element_blank(),
+        axis.text.y = element_text(size = text_size + 5),
+        axis.title.y = element_text(size = text_size + 10),
+        axis.title.x = element_blank(),
+        plot.title = element_text(size = text_size + 15),
+        plot.subtitle = element_text(size = text_size + 5),
+        legend.text = element_text(size = text_size + 5),
+        axis.ticks.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank()
+    ) +
+    geom_shadowtext(
+        aes(label = paste0("Whole-dataset summary statistics: ")),
+        y = credits_mean + 2,
+        x = x,
+        hjust = hjust,
+        colour = "white",
+        size = text_size - 5
+    ) +
+    geom_shadowtext(
+        aes(label = paste0("Kurtosis: ", round(credits_kurtosis,2))),
+        y = credits_mean + 1.5,
+        x = x,
+        hjust = hjust,
+        colour = "white",
+        size = text_size - 5
+    ) +
+    geom_shadowtext(
+        aes(label = paste0("Skewness: ", round(credits_skewness,2))),
+        y = credits_mean + 1,
+        x = x,
+        hjust = hjust,
+        colour = "white",
+        size = text_size - 5
+    ) +
+    geom_shadowtext(
+        aes(label = paste0("Mean appearances: ", round(credits_mean,2), " (white dashed line)")),
+        y = credits_mean + 0.5,
+        x = x,
+        hjust = hjust,
+        colour = "white",
+        size = text_size - 5
+    ) +
+    geom_shadowtext(
+        aes(label = paste0("Median appearances: ", credits_median, " (black solid line)")),
+        y = credits_median - 0.5,
+        x = x,
+        hjust = hjust,
+        colour = "white",
+        size = text_size - 5
+    )
+
+
+# bar chart to showing most prolific names
+credit_counts <- credits %>%
+    group_by(name, role) %>% # group df credits by name and role
+    count(name, sort = TRUE) # count how many times a unique combination of name and role appears
+n_in_fig <- 50 # it doesn't make sense (visually) to plot all of the names and their credit counts, so I'm choosing to plot the top x most prolific names
+df_plot <- head(credit_counts, n = n_in_fig) # subset all credit counts to only view the top n_in_fig credited people
+df_plot$role <- str_to_sentence(df_plot$role) # change $role to mixed case for plot aesthetics
+text_size <- 10 # choose a font size so if we need to scale plot text, everything scales relative to one number
+library(shadowtext)
+df_plot %>%
+    ggplot(aes(x = reorder(name,n), y = n, fill = role)) +
+    geom_col(position="dodge", color = "black") + # since I did the counting beforehand, I use geom_col because it defaults to stat_identity (not stat_count)
+    coord_flip() +
+    geom_shadowtext(
+        aes(label = name),
+        vjust = 0.35,
+        y = 0, # left-align text in bar chart text labels:  https://community.rstudio.com/t/how-to-start-text-label-from-extreme-left-in-bar-plot-using-geom-col-and-geom-text-in-ggplot2/77256/2
+        hjust = 0,
+        colour = "white",
+        size = text_size - 5
+        ) + 
+    geom_shadowtext(
+        aes(label = n),
+        vjust = 0.35,
+        #y = 10, # left-align text in bar chart text labels:  https://community.rstudio.com/t/how-to-start-text-label-from-extreme-left-in-bar-plot-using-geom-col-and-geom-text-in-ggplot2/77256/2
+        hjust = 1,
+        colour = "white",
+        size = text_size - 5
+    ) +
+    scale_fill_brewer(palette = "Paired") + # https://r-graph-gallery.com/ggplot2-color.html
+    scale_y_continuous(expand = c(0,0)) +
     theme_bw() +
     labs(
         title = paste0("Top ", n_in_fig, " actors and directors on Netflix"),
         x = "Name",
-        y = "Count of appearances"
-    )+
+        y = "Count of appearances",
+        fill = "Role"
+    ) +
     theme(
-        axis.text.x = element_blank(),
-        axis.text.y = element_text(size = text_size+5),
-        axis.title = element_text(size = text_size+10),
-        title = element_text(size = text_size+15)
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = text_size + 5),
+        axis.title = element_text(size = text_size + 10),
+        title = element_text(size = text_size + 15),
+        legend.text = element_text(size = text_size + 5)
     )
 
-
-ggplot(data = head(test, n = 200), aes(x = name, y = n)) +
-    geom_col() # since I did the counting beforehand, I use geom_col because it defaults to stat_identity (not stat_count)
 
 
 colnames(test)
