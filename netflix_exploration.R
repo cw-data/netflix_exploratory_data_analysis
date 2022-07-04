@@ -5,6 +5,8 @@ library(jtools)
 library(gt)
 library(dplyr)
 library(scales)
+library(shadowtext)
+library(moments)
 
 # setwd("C:/Users/wainr/OneDrive/Documents/netflix_exploratory_data_analysis")
 # https://www.kaggle.com/code/svitlanabozhenko/netflix
@@ -37,26 +39,34 @@ for(i in 1:n_distinct(credit_colnames)){ # specify loop length to match count of
 # frequency bar chart histogram showing distribution of credit
 credit_counts <- credits %>%
     count(name, sort = TRUE) # count the number of times a name appears in df credits
+count_freqs <- credit_counts %>%
+    count(n, sort = TRUE, name = "count") # count the number of times a number of appearances appears in credit_counts
 credits_mean <- mean(credit_counts$n)
 credits_median <- median(credit_counts$n)
 credits_skewness <- skewness(credit_counts$n)
 credits_kurtosis <- kurtosis(credit_counts$n)
 n_in_fig <- 50
 hjust <- 0
-x <- 1
-head(credit_counts, n=n_in_fig) %>%
-    ggplot(aes(x = reorder(name,-n), y = n)) +
-    geom_col(width = 1) + 
+x <- 15
+color_fig <- "black"
+nbins <- max(credit_counts$n)
+
+top_annotate <- 0.4
+credit_counts %>%
+    ggplot(aes(x = n)) +
+    geom_density(adjust = 5, alpha = 0.5) +
+    # geom_histogram(bins = nbins, fill = "gray", color = "black") + 
     scale_y_continuous(expand = c(0,0)) +
-    geom_hline(
-        yintercept = credits_mean,
+    scale_fill_brewer(palette = "Paired") +
+    geom_vline(
+        xintercept = credits_mean,
         na.rm = FALSE,
-        color = "white",
+        color = "red",
         linetype = "dashed",
         size = 2
     ) +
-    geom_hline(
-        yintercept = credits_median,
+    geom_vline(
+        xintercept = credits_median,
         na.rm = FALSE,
         color = "black",
         linetype = "solid",
@@ -64,65 +74,26 @@ head(credit_counts, n=n_in_fig) %>%
     ) +
     theme_bw() +
     labs(
-        title = paste0("Distribution of appearances by actors and directors on Netflix"),
-        subtitle = paste0("This figure shows a subset of the ", comma(n_in_fig), " most prolific out of a total of about ", comma(round(n_distinct(credits$name),-3))," people in this dataset."),
-        x = "Name",
-        y = "Count of appearances",
+        title = paste0("Distribution of appearances by actors and directors in Netflix programs"),
+        subtitle = paste0("This dataset includes about ", comma(round(nrow(credit_counts),-3)), " actors and directors"),
+        y = "Observation density",
+        x = "Count of appearances",
         fill = "Role"
-    ) +
+    )  +
     theme(
-        axis.text.x = element_blank(),
-        axis.text.y = element_text(size = text_size + 5),
-        axis.title.y = element_text(size = text_size + 10),
-        axis.title.x = element_blank(),
+        axis.text = element_text(size = text_size + 5),
+        axis.title = element_text(size = text_size + 10),
         plot.title = element_text(size = text_size + 15),
         plot.subtitle = element_text(size = text_size + 5),
         legend.text = element_text(size = text_size + 5),
-        axis.ticks.x = element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank()
     ) +
-    geom_shadowtext(
-        aes(label = paste0("Whole-dataset summary statistics: ")),
-        y = credits_mean + 2,
-        x = x,
-        hjust = hjust,
-        colour = "white",
-        size = text_size - 5
-    ) +
-    geom_shadowtext(
-        aes(label = paste0("Kurtosis: ", round(credits_kurtosis,2))),
-        y = credits_mean + 1.5,
-        x = x,
-        hjust = hjust,
-        colour = "white",
-        size = text_size - 5
-    ) +
-    geom_shadowtext(
-        aes(label = paste0("Skewness: ", round(credits_skewness,2))),
-        y = credits_mean + 1,
-        x = x,
-        hjust = hjust,
-        colour = "white",
-        size = text_size - 5
-    ) +
-    geom_shadowtext(
-        aes(label = paste0("Mean appearances: ", round(credits_mean,2), " (white dashed line)")),
-        y = credits_mean + 0.5,
-        x = x,
-        hjust = hjust,
-        colour = "white",
-        size = text_size - 5
-    ) +
-    geom_shadowtext(
-        aes(label = paste0("Median appearances: ", credits_median, " (black solid line)")),
-        y = credits_median - 0.5,
-        x = x,
-        hjust = hjust,
-        colour = "white",
-        size = text_size - 5
-    )
-
+    annotate("text", x = x, y = top_annotate, size = text_size-3, label = "Distribution summary statistics") +
+    annotate("text", x = x, y = top_annotate - 0.05*top_annotate, size = text_size-5, label = paste0("Kurtosis: ", round(credits_kurtosis,2), " and skewness: ", round(credits_skewness,2))) +
+    # annotate("text", x = x, y = top_annotate - 0.1*top_annotate, size = text_size-5, label = paste0("Skewness: ", round(credits_skewness,2))) +
+    annotate("text", x = x, y = top_annotate - 0.1*top_annotate, size = text_size-5, label = paste0("Mean appearances: ", round(credits_mean,2), " (red dashed line)")) +
+    annotate("text", x = x, y = top_annotate - 0.15*top_annotate, size = text_size-5, label = paste0("Median appearances: ", credits_median, " (black solid line)"))
 
 # bar chart to showing most prolific names
 credit_counts <- credits %>%
@@ -132,7 +103,7 @@ n_in_fig <- 50 # it doesn't make sense (visually) to plot all of the names and t
 df_plot <- head(credit_counts, n = n_in_fig) # subset all credit counts to only view the top n_in_fig credited people
 df_plot$role <- str_to_sentence(df_plot$role) # change $role to mixed case for plot aesthetics
 text_size <- 10 # choose a font size so if we need to scale plot text, everything scales relative to one number
-library(shadowtext)
+
 df_plot %>%
     ggplot(aes(x = reorder(name,n), y = n, fill = role)) +
     geom_col(position="dodge", color = "black") + # since I did the counting beforehand, I use geom_col because it defaults to stat_identity (not stat_count)
